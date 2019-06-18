@@ -353,7 +353,7 @@ class ISCBot(object):
 #-------Main method-------#
 
 def main():
-    VERSION = '1.2'
+    VERSION = '1.3'
     print('Start ISCBot v{}'.format(VERSION))
     iscbot = ISCBot()
     # Start polling
