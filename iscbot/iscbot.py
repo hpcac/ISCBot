@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from functools import wraps
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ParseMode, ReplyKeyboardMarkup
 from telegram.ext import CallbackQueryHandler
 from telegram.ext import CommandHandler, Filters, MessageHandler
@@ -19,11 +19,14 @@ class ISCBot(object):
     queue = None
     pdus = None
     wait_for_reply = False
- 
+    counter = 15
+    last_nr = []
+    last_msg = {}
+
     # Chat IDs for permissions
     ISC_grpID = 0
     access_list = []
-   
+
     def __init__(self):
         print('Initialize frontend')
         # Read in the chat IDs for the access group
@@ -68,6 +71,9 @@ class ISCBot(object):
         peak_power_handler = CommandHandler('peaks', self.peaks)
         dispatcher.add_handler(peak_power_handler)
 
+        peak_dates_handler = CommandHandler('peakdates', self.peak_dates)
+        dispatcher.add_handler(peak_dates_handler)
+
         #reset_handler = CommandHandler('reset', self.reset_pdu)
         #dispatcher.add_handler(reset_handler)
 
@@ -106,21 +112,45 @@ class ISCBot(object):
         """
         bot.send_message(chat_id=update.message.chat_id, text=self.pdus.peaks())
 
+    def peak_dates(self, bot, update):
+        """
+        Gets the peak power values of all teams with corresponding timestamps from backend
+        and sends it to the user.
+        """
+        bot.send_message(chat_id=update.message.chat_id, text=self.pdus.peak_dates())
+
     def check_limits(self, bot, job):
         """
         Gets list of all teams off the power limit from the backend and sends push notifications.
         Possible ways for sending it: a) First user in access list, b) in the group.
         """
-        exceeders = self.pdus.check_exceedings()
+        exceeders, not_reachable = self.pdus.check_exceedings()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S') + '\n'
+        self.counter += 1
         if(len(exceeders) > 0):
             for ex in exceeders:
                 print(now + ex)
-                #bot.send_message(chat_id=self.access_list[0], text=ex)
+                #for rcv in self.access_list:
+                #    bot.send_message(chat_id=rcv, text=ex)
+                bot.send_message(chat_id=self.access_list[0], text=ex)
+                #bot.send_message(chat_id=self.access_list[1], text=ex)
 
                 #Additionally, log in file
                 with open('exceedings.log', 'a') as f:
                     f.write((now + '--- ' + ex).replace('\n', ' ') + '\n')
+        #if(len(not_reachable) > 0 and self.counter > 15 ):
+        #    self.counter = 0
+        #    for nr in not_reachable:
+        #        if(nr in self.last_nr):
+        #            self.last_nr.remove(nr)
+        #            print(now + nr)
+                    #bot.send_message(chat_id=self.access_list[0], text=nr)
+
+                    #Additionally, log in file
+        #            with open('exceedings.log', 'a') as f:
+        #                f.write((now + '--- ' + nr).replace('\n', ' ') + '\n')
+        #        else:
+        #            self.last_nr.append(nr)
 
     # depricated
     @restricted
@@ -145,13 +175,13 @@ class ISCBot(object):
         bot.send_message(chat_id=update.message.chat_id, text=txt, reply_markup=markup)
 
     #--------------------------------#
-    
+
     # Only for testing purposes
     @restricted
     def send_group(self, bot, update):
         bot.send_message(chat_id=self.ISC_grpID, text='Hello Group from {}'.format(
                          update.message.from_user.first_name))
- 
+
     def start(self, bot, update):
         """
         Starting point for everybody texting ISCBot for the first time. Start via /start.
@@ -160,7 +190,7 @@ class ISCBot(object):
                          + 'and can help you monitoring the PDUs. Type in your commands '
                          + 'with a \'/\' in the beginning.'))
 
-     
+
     def get_help(self, bot, update):
         """
         List of all commands and brief explanations. Start via /help.
@@ -170,8 +200,8 @@ class ISCBot(object):
         with open('help.txt', 'r') as f:
             for line in f:
                 helptext += line
-        
-        bot.send_message(chat_id=update.message.chat_id, text=helptext, 
+
+        bot.send_message(chat_id=update.message.chat_id, text=helptext,
                          parse_mode=ParseMode.MARKDOWN)
 
     def unknown(self, bot, update):
@@ -198,7 +228,7 @@ class ISCBot(object):
             except ValueError:
                 txt = ('Your answer was no valid number. Please send me the last 3 digits '
                       + 'of the IP address of the PDU you want to reset.\nIf you want to '
-                      + 'stop the resetting procedure, just type \'`stop`\'.') 
+                      + 'stop the resetting procedure, just type \'`stop`\'.')
                 markup = ReplyKeyboardMarkup(keyboard=self.create_reply_keyboard(),
                                              one_time_keyboard=True)
                 bot.send_message(chat_id=update.message.chat_id, reply_markup=markup,
@@ -208,7 +238,7 @@ class ISCBot(object):
                 txt = ('The given number is none of the controllable PDU IPs. Please send '
                       + 'send me the last 3 digits of the IP address of the PDU you want to '
                       + 'reset or add the new IP address in the `ips.csv` file.\nIf you want '
-                      + 'to stop the resetting procedure, just type \'`stop`\'.') 
+                      + 'to stop the resetting procedure, just type \'`stop`\'.')
                 markup = ReplyKeyboardMarkup(keyboard=self.create_reply_keyboard(),
                                              one_time_keyboard=True)
                 bot.send_message(chat_id=update.message.chat_id, reply_markup=markup,
@@ -223,7 +253,8 @@ class ISCBot(object):
                     return True
                 else:
                     bot.send_message(chat_id=update.message.chat_id, text='Something went '
-                                     + 'wrong. Please try again!')
+                                     + 'wrong during resetting PDU of team {} (.{}). You might '
+                                     + 'want to try it again!'.format(self.pdus.teams[ip], ip))
                     return False
 
     @restricted
@@ -239,23 +270,49 @@ class ISCBot(object):
             ip = int(ip)
         except ValueError:
             print('Corrupted Data! Please check for security.', file=sys.stdout)
-            bot.edit_message_text(chat_id=update.callback_query.message.chat_id,
-                                  message_id=update.callback_query.message.message_id, 
-                                  text=('Please verify the source of your data, it might '
-                                  + 'be corrupted'))
+            self.edit_message_text_wrapper(bot,
+                                  update.callback_query.message.chat_id,
+                                  update.callback_query.message.message_id,
+                                  'Please verify the source of your data, it might be corrupted')
             return False
         if(self.pdus.reset(ip)):
-            bot.edit_message_text(chat_id=update.callback_query.message.chat_id, 
-                                  message_id=update.callback_query.message.message_id,
-                                  text=(('Peak Power of PDU with IP .{} ({}) successfully '
-                                  + 'resetted.').format(ip, self.pdus.teams[ip])))
+            self.edit_message_text_wrapper(bot,
+                                  update.callback_query.message.chat_id,
+                                  update.callback_query.message.message_id,
+                                  ('Peak Power of PDU with IP .{} ({}) successfully '
+                                  + 'reset.').format(ip, self.pdus.teams[ip]))
+            #Additionally, log in file
+            ex = self.pdus.teams[ip] + ' (.' + str(ip) + '): Reset\n'
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            with open('exceedings.log', 'a') as f:
+                f.write(now + ' --- ' + ex)
             return True
         else:
-            bot.edit_message_text(chat_id=update.callback_query.message.chat_id, 
-                                  message_id=update.callback_query.message.message_id,
-                                  text='Something went wrong. Please try again!')
+            self.edit_message_text_wrapper(bot,
+                                  update.callback_query.message.chat_id,
+                                  update.callback_query.message.message_id,
+                                  ('Something went wrong during resetting PDU with IP .{}. You '
+                                  + 'might want to try it again!').format(self.pdus.teams[ip]))
             return False
-    
+
+    # Avoid telegram.error.BadRequest
+    def edit_message_text_wrapper(self, bot, chat_id, message_id, text):
+        if ('chat_id' not in self.last_msg
+            or self.last_msg['chat_id'] != chat_id
+            or self.last_msg['message_id'] != message_id
+            or self.last_msg['text'] != text
+            ):
+            # Change message
+            self.last_msg['chat_id'] = chat_id
+            self.last_msg['message_id'] = message_id
+            self.last_msg['text'] = text
+            bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text)
+            return
+        else:
+            # Nothing to do
+            return
+
+
     # deprecated
     def create_reply_keyboard(self):
         """
@@ -282,7 +339,7 @@ class ISCBot(object):
         i = 0
         keyb = []
         tmp = []
-        # We don't need to reset HPCAC PDU, so we don't show it here
+        # If we don't need to reset HPCAC PDU, we don't show it here with ...ips[:-1]
         for ip in self.pdus.ips[:-1]:
             i += 1
             tmp.append(InlineKeyboardButton(str(ip), callback_data=str(ip)))
@@ -291,7 +348,7 @@ class ISCBot(object):
                 tmp =[]
         keyb.append(tmp)
         return keyb
-       
+
 
 #-------Main method-------#
 

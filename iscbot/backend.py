@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from subprocess import Popen, PIPE
 
+import pexpect
 from pexpect import spawn
 
 class Backend(object):
@@ -51,12 +52,15 @@ class Backend(object):
         """
         out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nCurrent power values:\n'
         for ip in self.ips:
-            sn = ['snmpget', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161', 
+            sn = ['snmpget', '-t', '0.1', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161', 
                   '.1.3.6.1.4.1.318.1.1.26.6.3.1.7.1']
             p = Popen(sn, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             output, err = p.communicate(b'input data that is passed to stdin of subprocess')
             rc = p.returncode
-            power = int(str(output).split(':')[-1][1:-3])*10
+            try:
+                power = int(str(output).split(':')[-1][1:-3])*10
+            except ValueError:
+                power = -1
             out += '{}(.{}): {} W\n'.format(self.teams[ip].ljust(self.lngst_name),
                                             ip, power)
         return out
@@ -73,15 +77,51 @@ class Backend(object):
         """
         out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nPeak power values:\n'
         for ip in self.ips:
-            sn = ['snmpget', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161', 
+            sn = ['snmpget', '-t', '0.1', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161', 
                   '.1.3.6.1.4.1.318.1.1.26.4.3.1.6.1']
             p = Popen(sn, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             output, err = p.communicate(b'input data that is passed to stdin of subprocess')
             rc = p.returncode
-            power = int(str(output).split(':')[-1][1:-3])*10
+            try:
+                power = int(str(output).split(':')[-1][1:-3])*10
+            except ValueError:
+                power = -1
             out += '{}(.{}): {} W\n'.format(self.teams[ip].ljust(self.lngst_name),
                                             ip, power)
         return out
+
+    def peak_dates(self):
+        """
+        Reads out the current peak power values together with the timestamp when the peak was 
+        reached for each team and returns everything as a string including the current date.
+
+        Returns
+        -------
+        string
+            All current peak power values with corresponding timestamps
+        """
+        out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nPeak power values:\n'
+        for ip in self.ips:
+            sn = ['snmpget', '-t', '0.1', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161', 
+                '.1.3.6.1.4.1.318.1.1.26.4.3.1.6.1']
+            sn_d = ['snmpget', '-t', '0.1', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161',
+                '.1.3.6.1.4.1.318.1.1.26.4.3.1.7.1']
+            p = Popen(sn, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output, err = p.communicate(b'input data that is passed to stdin of subprocess')
+            rc = p.returncode
+
+            p_d = Popen(sn_d, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output_d, err_d = p_d.communicate(b'input data that is passed to stdin of subprocess')
+            rc_d = p_d.returncode
+            try:
+                power = int(str(output).split(':')[-1][1:-3])*10
+                date = str(output_d).split('"')[1]
+            except ValueError:
+                power = -1
+            out += '{}(.{}): {} W\n    {}\n'.format(self.teams[ip].ljust(self.lngst_name),
+                                            ip, power, date)
+        return out
+
 
     def check_exceedings(self):
         """
@@ -94,18 +134,24 @@ class Backend(object):
             List of strings with IP and peak value for each exceeder
         """
         exceeders = []
+        not_reachable = []
         for ip in self.ips:
-            sn = ['snmpget', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161',
+            sn = ['snmpget', '-t', '0.1', '-v', '2c', '-c', 'public', '192.168.1.'+str(ip)+':161',
                   '.1.3.6.1.4.1.318.1.1.26.4.3.1.6.1']
             p = Popen(sn, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             output, err = p.communicate(b'input data that is passed to stdin of subprocess')
             rc = p.returncode
-            peak = int(str(output).split(':')[-1][1:-3])
+            try:
+                peak = int(str(output).split(':')[-1][1:-3])
+            except ValueError:
+                peak = -1
+                not_reachable.append('{}(.{}):\nPDU not reachable!'.format(
+                                 self.teams[ip], ip))
             if(peak > self.LIMIT and self.team_peaks[ip] < self.LIMIT):
                 self.team_peaks[ip] = peak
                 exceeders.append('{}(.{}):\nAbove power limit ({} W)!'.format(
                                  self.teams[ip], ip, peak*10))
-        return exceeders
+        return (exceeders,not_reachable)
 
     def reset(self, ip):
         """
@@ -126,7 +172,7 @@ class Backend(object):
         # Start ELinks
         try:
             child = spawn('elinks 192.168.1.' + str(ip))
-            print('wait to establish connection...', end='')
+            print('wait to establish connection to {}...'.format(ip), end='')
             child.expect('Log On', timeout=10)
             # Open PDU connection and navigate to Configurations -> Device
             time.sleep(1)
@@ -142,18 +188,19 @@ class Backend(object):
             child.sendline('n')
             child.expect('Rack PDU 2G', timeout=10)
             time.sleep(1)
-            print('Reseting...', end='', flush=True)
+            print('Resetting...', end='', flush=True)
             # Reset PDU peak power
             child.sendline('/Reset (last')
             child.send(self.K_DOWN * 20)
             child.sendline(self.K_UP * 7)
             child.sendline(self.K_DOWN * 2)
             child.sendline('')
-            child.expect('Rack PDU 2G', timeout=10)
-            time.sleep(4.5)
+            child.expect('Rack PDU 2G', timeout=12)
+            time.sleep(8)
             # Log off
+            print('Disconnecting...', end ='', flush=True)
             child.sendline(self.K_DOWN * 2)
-            child.expect('You are now logged off', timeout=10)
+            #child.expect('You are now logged off', timeout=20)
             time.sleep(1)
             child.sendline('')
             print('Done!', flush=False)
@@ -164,8 +211,8 @@ class Backend(object):
             self.team_peaks[ip] = 0
             print('PDU of '+self.teams[ip]+' successfully reset!')
         except pexpect.TIMEOUT:
-            print('Expect Timeout reached. Reset probably did not finish.', 
-                  file=sys.stderr, flush=False)
+            print('Expect Timeout reached for '+self.teams[ip]+'. Reset '
+                  + 'may  not be finished.', file=sys.stderr, flush=False)
             if(not child.terminate()):
                 print('Could not terminate child regularly.', file=sys.stderr)
                 child.terminate(force=True)
