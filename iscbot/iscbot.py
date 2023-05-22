@@ -152,25 +152,14 @@ class ISCBot(object):
         #        else:
         #            self.last_nr.append(nr)
 
-    # depricated
-    @restricted
-    def reset_pdu(self, bot, update):
-        """
-        @Deprecated
-        Resets the peak power of PDU for certain IP address via old KeyboardMarkup.
-        """
-        txt = 'Please type in the last 3 digits of the IP address to reset: '
-        markup = ReplyKeyboardMarkup(keyboard=self.create_reply_keyboard(),
-                                     one_time_keyboard=True)
-        bot.send_message(chat_id=update.message.chat_id, text=txt, reply_markup=markup)
-        self.wait_for_reply = True
+
 
     @restricted
     def reset_pdu_inline(self, bot, update):
         """
         Resets the peak power of PDU for certain IP address via new inline KeyboardMarkup.
         """
-        txt = 'Please type in the last 3 digits of the IP address to reset: '
+        txt = 'Please choose the team to reset their PDU: '
         markup = InlineKeyboardMarkup(inline_keyboard=self.create_inline_keyboard())
         bot.send_message(chat_id=update.message.chat_id, text=txt, reply_markup=markup)
 
@@ -210,79 +199,25 @@ class ISCBot(object):
         """
         update.message.reply_text('Sorry, I didn\'t understand that command.')
 
-    # depricated
-    @restricted
-    def message_reply(self, bot, update):
-        """
-        @Deprecated
-        Helper function for PDU reset via old KeyboardMarkup.
-        """
-        if(not self.wait_for_reply):
-            return True
-        else:
-            if(update.message.text.lower() == 'stop'):
-                self.wait_for_reply = False
-                return True
-            try:
-                ip = int(update.message.text)
-            except ValueError:
-                txt = ('Your answer was no valid number. Please send me the last 3 digits '
-                      + 'of the IP address of the PDU you want to reset.\nIf you want to '
-                      + 'stop the resetting procedure, just type \'`stop`\'.')
-                markup = ReplyKeyboardMarkup(keyboard=self.create_reply_keyboard(),
-                                             one_time_keyboard=True)
-                bot.send_message(chat_id=update.message.chat_id, reply_markup=markup,
-                                 text=txt, parse_mode=ParseMode.MARKDOWN)
-                return False
-            if(ip not in self.pdus.ips):
-                txt = ('The given number is none of the controllable PDU IPs. Please send '
-                      + 'send me the last 3 digits of the IP address of the PDU you want to '
-                      + 'reset or add the new IP address in the `ips.csv` file.\nIf you want '
-                      + 'to stop the resetting procedure, just type \'`stop`\'.')
-                markup = ReplyKeyboardMarkup(keyboard=self.create_reply_keyboard(),
-                                             one_time_keyboard=True)
-                bot.send_message(chat_id=update.message.chat_id, reply_markup=markup,
-                                 text=txt, parse_mode=ParseMode.MARKDOWN)
-                return False
-            else:
-                self.wait_for_reply = False
-                if(self.pdus.reset(ip)):
-                    bot.send_message(chat_id=update.message.chat_id, text='Peak Power of '
-                                     + 'PDU with IP .{} ({}) successfully resetted.'.format(
-                                     ip, self.pdus.teams[ip]))
-                    return True
-                else:
-                    bot.send_message(chat_id=update.message.chat_id, text='Something went '
-                                     + 'wrong during resetting PDU of team {} (.{}). You might '
-                                     + 'want to try it again!'.format(self.pdus.teams[ip], ip))
-                    return False
 
     @restricted
     def cb_query(self, bot, update):
         """
         Helper function for resetting the Rack PDUs.
         """
-        ip = update.callback_query.data
+        team = update.callback_query.data
         bot.answer_callback_query(callback_query_id=update.callback_query.id,
-                                  text=('Resetting PDU with IP address .{}. '
-                                       + 'Please wait...').format(ip))
-        try:
-            ip = int(ip)
-        except ValueError:
-            print('Corrupted Data! Please check for security.', file=sys.stdout)
+                                  text=('Resetting PDU of {}. '
+                                       + 'Please wait...').format(team))
+        if(self.pdus.reset(team)):
+            ips = ", ".join([str(ip) for ip in self.pdus.teams[team].keys()])
             self.edit_message_text_wrapper(bot,
                                   update.callback_query.message.chat_id,
                                   update.callback_query.message.message_id,
-                                  'Please verify the source of your data, it might be corrupted')
-            return False
-        if(self.pdus.reset(ip)):
-            self.edit_message_text_wrapper(bot,
-                                  update.callback_query.message.chat_id,
-                                  update.callback_query.message.message_id,
-                                  ('Peak Power of PDU with IP .{} ({}) successfully '
-                                  + 'reset.').format(ip, self.pdus.teams[ip]))
+                                  ('Peak Power of PDU of team {} ({}) successfully '
+                                  + 'reset.').format(team, ips))
             #Additionally, log in file
-            ex = self.pdus.teams[ip] + ' (.' + str(ip) + '): Reset\n'
+            ex = team + ' (.' + ips + '): Reset\n'
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             with open('exceedings.log', 'a') as f:
                 f.write(now + ' --- ' + ex)
@@ -291,8 +226,8 @@ class ISCBot(object):
             self.edit_message_text_wrapper(bot,
                                   update.callback_query.message.chat_id,
                                   update.callback_query.message.message_id,
-                                  ('Something went wrong during resetting PDU with IP .{}. You '
-                                  + 'might want to try it again!').format(self.pdus.teams[ip]))
+                                  ('Something went wrong during resetting PDU of team {} ({}). You '
+                                  + 'might want to try it again!').format(team, ips))
             return False
 
     # Avoid telegram.error.BadRequest
@@ -313,25 +248,6 @@ class ISCBot(object):
             return
 
 
-    # deprecated
-    def create_reply_keyboard(self):
-        """
-        @Deprecated
-        Creates dynamically a keyboard layout for markup.
-        """
-        i = 0
-        keyb = []
-        tmp = []
-        # We don't need to reset HPCAC PDU, so we don't show it here
-        for ip in self.pdus.ips[:-1]:
-            i += 1
-            tmp.append(str(ip))
-            if(i%4 == 0):
-                keyb.append(tmp)
-                tmp =[]
-        keyb.append(tmp)
-        return keyb
-
     def create_inline_keyboard(self):
         """
         Creates dynamically an inline keyboard layout for markup.
@@ -340,9 +256,11 @@ class ISCBot(object):
         keyb = []
         tmp = []
         # If we don't need to reset HPCAC PDU, we don't show it here with ...ips[:-1]
-        for ip in self.pdus.ips[:-1]:
+        for team in self.pdus.teams:
+            if team == "HPCAC":
+                continue
             i += 1
-            tmp.append(InlineKeyboardButton(str(ip), callback_data=str(ip)))
+            tmp.append(InlineKeyboardButton(str(team), callback_data=str(team)))
             if(i%4 == 0):
                 keyb.append(tmp)
                 tmp =[]
