@@ -20,7 +20,7 @@ class Backend(object):
     K_UP = '\x1b[A'
     K_DOWN = '\x1b[B'
     # power value stored as tenth of actual value, e.g. 3kW means 300
-    LIMIT = 300
+    LIMIT = 600
     # set number of PDUs per team here. Make sure they 
     # Password is set during initialization
     pwd = None
@@ -57,7 +57,7 @@ class Backend(object):
             All current power values 
         """
         out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nCurrent power values:\n'
-        for team in self.teams:
+        for team in sorted(self.teams.keys()):
             team_power = 0
             ip_list = ", ".join([str(ip) for ip in self.teams[team].keys()])
             for ip in self.teams[team].keys():
@@ -71,7 +71,7 @@ class Backend(object):
                 except ValueError:
                     team_power = -1
                     break
-            out += '{}(.{}): {} W\n'.format(team.ljust(self.lngst_name),
+            out += '{}({}): {} W\n'.format(team.ljust(self.lngst_name),
                                                 ip_list, team_power)
         return out
 
@@ -86,7 +86,7 @@ class Backend(object):
             All current peak power values
         """
         out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nPeak power values:\n'
-        for team in self.teams:
+        for team in sorted(self.teams.keys()):
             team_peak = 0
             ip_list = ", ".join([str(ip) for ip in self.teams[team].keys()])
             for ip in self.teams[team].keys():
@@ -100,8 +100,8 @@ class Backend(object):
                 except ValueError:
                     team_peak = -1
                     break
-            out += '{}(.{}): {} W\n'.format(team.ljust(self.lngst_name),
-                                            ip_list, team_power)
+            out += '{}({}): {} W\n'.format(team.ljust(self.lngst_name),
+                                            ip_list, team_peak)
         return out
 
     def peak_dates(self):
@@ -115,7 +115,7 @@ class Backend(object):
             All current peak power values with corresponding timestamps
         """
         out = datetime.now().strftime('%Y-%m-%d %H:%M:%S')+'\nPeak power values:\n'
-        for team in self.teams:
+        for team in sorted(self.teams.keys()):
             team_peak = 0
             ip_list = ", ".join([str(ip) for ip in self.teams[team].keys()])
             for ip in self.teams[team].keys():
@@ -131,13 +131,13 @@ class Backend(object):
                 output_d, err_d = p_d.communicate(b'input data that is passed to stdin of subprocess')
                 rc_d = p_d.returncode
                 try:
-                    team_power += int(str(output).split(':')[-1][1:-3])*10
+                    team_peak += int(str(output).split(':')[-1][1:-3])*10
                     date = str(output_d).split('"')[1]
                 except ValueError:
-                    power = -1
+                    team_peak = -1
                     break
-            out += '{}(.{}): {} W\n    {}\n'.format(team.ljust(self.lngst_name),
-                                                ip_list, team_power, date)
+            out += '{}({}): {} W\n    {}\n'.format(team.ljust(self.lngst_name),
+                                                ip_list, team_peak, date)
         return out
 
 
@@ -153,7 +153,7 @@ class Backend(object):
         """
         exceeders = []
         not_reachable = []
-        for team in self.teams:
+        for team in sorted(self.teams.keys()):
             team_peak = 0
             ip_list = ", ".join([str(ip) for ip in self.teams[team].keys()])
             for ip in self.teams[team].keys():
@@ -165,14 +165,14 @@ class Backend(object):
                 try:
                     team_peak += int(str(output).split(':')[-1][1:-3])
                 except ValueError:
-                    peak = -1
-                    not_reachable.append('{}(.{}):\nPDU not reachable!'.format(
-                                     self.teams[ip], ip))
+                    team_peak = -1
+                    not_reachable.append('{}({}):\nPDU not reachable!'.format(
+                                     team, ip))
                     break
             if(team_peak > self.LIMIT and self.team_peaks[team] < self.LIMIT):
-                    self.team_peaks[team] = peak
-                    exceeders.append('{}(.{}):\nAbove power limit ({} W)!'.format(
-                                     team, ip_list, peak*10))
+                    self.team_peaks[team] = team_peak
+                    exceeders.append('{}({}):\nAbove power limit ({} W)!'.format(
+                                     team, ip_list, team_peak*10))
         return (exceeders,not_reachable)
 
     def reset(self, team):
@@ -190,7 +190,7 @@ class Backend(object):
             True    if resetting was successful
             False   if pexpect.TIMOUT appeared
         """
-        for ip in self.teams[team].keys():
+        for ip in sorted(self.teams[team].keys()):
             print('Start...', end='', flush=True)
             # Start ELinks
             try:
@@ -231,10 +231,10 @@ class Backend(object):
                 child.sendline('q')
                 child.kill(0)
                 
-                self.team_peaks[ip] = 0
-                print('PDU of '+self.teams[ip]+' successfully reset!')
+                self.team_peaks[team] = 0
+                print('PDU of '+team+' ('+str(ip)+') successfully reset!')
             except pexpect.TIMEOUT:
-                print('Expect Timeout reached for '+self.teams[ip]+'. Reset '
+                print('Expect Timeout reached for '+self.teams[team]+'('+str(ip)+'). Reset '
                       + 'may  not be finished.', file=sys.stderr, flush=False)
                 if(not child.terminate()):
                     print('Could not terminate child regularly.', file=sys.stderr)

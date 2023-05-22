@@ -46,6 +46,7 @@ class ISCBot(object):
                             level=logging.INFO)
         # Start backend
         self.pdus = Backend()
+        print('Successfully initialized backend!')
 
         # Start Bot
         self.updater = Updater(token='565616615:AAHeVav01akOO_ox2RLED8jdLqMISLL-Hfc')
@@ -53,9 +54,6 @@ class ISCBot(object):
         self.queue = self.updater.job_queue
 
         # Add handler
-        msg_handler = MessageHandler(Filters.text, self.message_reply)
-        dispatcher.add_handler(msg_handler)
-
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
 
@@ -210,7 +208,7 @@ class ISCBot(object):
                                   text=('Resetting PDU of {}. '
                                        + 'Please wait...').format(team))
         if(self.pdus.reset(team)):
-            ips = ", ".join([str(ip) for ip in self.pdus.teams[team].keys()])
+            ips = ", ".join([str(ip) for ip in sorted(self.pdus.teams[team].keys())])
             self.edit_message_text_wrapper(bot,
                                   update.callback_query.message.chat_id,
                                   update.callback_query.message.message_id,
@@ -256,9 +254,7 @@ class ISCBot(object):
         keyb = []
         tmp = []
         # If we don't need to reset HPCAC PDU, we don't show it here with ...ips[:-1]
-        for team in self.pdus.teams:
-            if team == "HPCAC":
-                continue
+        for team in sorted(self.pdus.teams):
             i += 1
             tmp.append(InlineKeyboardButton(str(team), callback_data=str(team)))
             if(i%4 == 0):
