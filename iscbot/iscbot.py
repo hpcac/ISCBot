@@ -137,7 +137,8 @@ class ISCBot(object):
                 print(now + ex)
                 #for rcv in self.access_list:
                 #    bot.send_message(chat_id=rcv, text=ex)
-                await bot.send_message(chat_id=self.access_list[0], text=ex)
+                for chat in self.access_list:
+                    await bot.send_message(chat_id=chat, text=ex)
                 #bot.send_message(chat_id=self.access_list[1], text=ex)
 
                 #Additionally, log in file
