@@ -48,7 +48,7 @@ class ISCBot(object):
         # set higher logging level for httpx to avoid all GET and POST requests being logged
         logging.getLogger("httpx").setLevel(logging.WARNING)
         # Start backend
-        self.pdus = Backend()
+        self.pdus = Backend(bot=self)
         print('Successfully initialized backend!')
 
         # Start Bot
@@ -114,7 +114,7 @@ class ISCBot(object):
         """
         await update.message.reply_text(text=self.pdus.peaks())
 
-    
+
     async def peak_dates(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Gets the peak power values of all teams with corresponding timestamps from backend
@@ -215,7 +215,11 @@ class ISCBot(object):
         await context.bot.answer_callback_query(callback_query_id=query.id,
                                   text=('Resetting PDU of {}. '
                                        + 'Please wait until the bot replies...').format(team))
-        if(self.pdus.reset(team)):
+
+        progress_msg = await context.bot.send_message(chat_id=query.message.chat_id, text="Start resetting PDU of {}".format(team), parse_mode=ParseMode.MARKDOWN_V2)
+        if(await self.pdus.reset(team, context, progress_msg)):
+            # In case of success, remove progress message
+            await context.bot.delete_message(progress_msg.chat_id, progress_msg.message_id)
             ips = ", ".join([str(ip) for ip in sorted(self.pdus.teams[team].keys())])
             await self.edit_message_text_wrapper(context.bot,
                                   query.message.chat_id,
@@ -236,8 +240,11 @@ class ISCBot(object):
                                   + 'might want to try it again!').format(team, ips))
             return False
 
+
     # Avoid telegram.error.BadRequest
-    async def edit_message_text_wrapper(self, bot, chat_id, message_id, text):
+    async def edit_message_text_wrapper(self, bot, chat_id, message_id, text, parse_mode=None):
+        if parse_mode == "md":
+            parse_mode = ParseMode.MARKDOWN_V2
         if ('chat_id' not in self.last_msg
             or self.last_msg['chat_id'] != chat_id
             or self.last_msg['message_id'] != message_id
@@ -247,7 +254,7 @@ class ISCBot(object):
             self.last_msg['chat_id'] = chat_id
             self.last_msg['message_id'] = message_id
             self.last_msg['text'] = text
-            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text)
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, parse_mode=parse_mode)
             return
         else:
             # Nothing to do
