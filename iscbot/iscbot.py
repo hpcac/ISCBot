@@ -139,7 +139,7 @@ class ISCBot(object):
                 #for chat in self.access_list:
                 #    await bot.send_message(chat_id=chat, text=ex)
                 # for the first user in the access list
-                bot.send_message(chat_id=self.access_list[0], text=ex)
+                await bot.send_message(chat_id=self.access_list[0], text=ex)
 
                 #Additionally, log in file
                 with open('exceedings.log', 'a') as f:
