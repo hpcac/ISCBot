@@ -3,11 +3,11 @@
 
 
 ISC Bot
-======= 
+=======
 Bot for power monitoring of the HPCAC SCC of the ISC events.
 It can show current and peak power values, sends notifications in case of a team exceeds the power limit and can reset the actual peak power values on certain PDUs.
 
-Version: 1.3
+Version: 1.5
 
 Getting Started
 ===============
@@ -15,14 +15,14 @@ For running the Bot, no installation is necessary.
 Just clone this repository using ``git clone https://github.com/JanLJL/Telegram_Bots`` and go to the ``ISCBot`` directory.
 
 Dependencies
-~~~~~~~~~~~
+~~~~~~~~~~~~
 Additional requirements are:
 
 -  `Net-SNMP <http://www.net-snmp.org/>`_
 -  `ELinks <http://elinks.or.cz/>`_
 -  `Python3 <https://www.python.org/>`_
 -  `Pexpect <https://github.com/pexpect/pexpect>`_
--  `python-telegram-bot <https://github.com/python-telegram-bot/python-telegram-bot>`_
+-  `python-telegram-bot <https://github.com/python-telegram-bot/python-telegram-bot>`_ including the `JobQueue requirement <https://docs.python-telegram-bot.org/en/stable/telegram.ext.jobqueue.html>`_
 
 Configuration
 ~~~~~~~~~~~~~
@@ -39,19 +39,19 @@ There are two configurable files in the ISCBot directory that one has to customi
     424242424     # <-- chat_id of users which are allowed
     133742241     #     to communicate in private chats
     
-  If you do not know the ``chat_id`` for a certain user, the ID will be shown as terminal output of the host 
+  If you do not know the ``chat_id`` for a certain user, the ID will be shown as terminal output of the host
   while the user is trying to access a restricted function.
   You then can copy the ``chat_id`` to your access list.
    
 ``ips.csv``
   This file contains all PDUs for monitoring and resetting.
-  Each line shows the last 3 digits of the ip address and the name of the associated team.
-  Only lines in form of `NUM,NAME` are allowed.
+  Each line shows the last 3 digits of the ip address of the specific PDU, its unique name, and the name of the associated team.
+  Only lines in form of `IP,PDU_NAME,TEAM_NAME` are allowed.
   Example (let's say we have 3 PDUs in the range of 192.168.1.101 to 192.168.1.103)::
   
-    101, Name_of_PDU
-    102, Second_PDU
-    103, Something completely different
+    101, Name_of_PDU, Team-Sunshine
+    102, Second_PDU, Team-Sunshine
+    103, Something completely different, Team-PurpleRain
 
 Usage
 =====
@@ -91,8 +91,8 @@ and type ``/start`` for starting a conversation.
   ``@restricted``
   
   Resets PDU's peak power value specified by a given IP.
-  After starting the command, please answer to the bot asking you for the IP address of the PDU to reset by
-  sending the last 3 digits of the IP address.
+  After starting the command you must choose the team for which you want to reset all correspnding PDUs.
+  This process takes some time, be patient :).
   
 ``/help``
   Prints out help.
