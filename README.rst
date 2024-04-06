@@ -1,5 +1,12 @@
-|img_isc| |img_hpcac|
+.. raw:: html
 
+    <a href="https://www.isc-hpc.com/"><img src="docs/ISC-logo.png" width="45%" align="left" alt="ISC logo">
+
+.. raw:: html
+
+    <a href="http://hpcadvisorycouncil.com/"><img src="docs/hpcac-logo.png" width="40%" align="right" alt="HPCAC logo">
+    <br clear="all" />
+    <br clear="all" />
 
 
 ISC Bot
