@@ -222,7 +222,10 @@ class Backend(object):
                     progress_bar = progress_bar.replace("= ", "=\=")
                     progress_txt = "Logged in"
                     await self.bot.edit_message_text_wrapper(context.bot, progress_msg.chat_id, progress_msg.message_id, progress_bar + progress_txt, parse_mode="md")
-                child.sendline('/Device')
+                child.send('/')
+                child.sendline(self.K_DOWN)
+                child.send(self.K_UP)
+                child.sendline('Device')
                 child.sendline('n')
                 child.expect('Rack PDU 2G', timeout=10)
                 time.sleep(1)
@@ -232,7 +235,7 @@ class Backend(object):
                     progress_txt = "Resetting PDU\.\.\."
                     await self.bot.edit_message_text_wrapper(context.bot, progress_msg.chat_id, progress_msg.message_id, progress_bar + progress_txt, parse_mode="md")
                 # Reset PDU peak power
-                child.sendline('/Reset (last')
+                child.sendline('/Reset (')
                 child.send(self.K_DOWN * 20)
                 child.sendline(self.K_UP * 7)
                 child.sendline(self.K_DOWN * 2)
