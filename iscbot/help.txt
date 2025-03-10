@@ -1,7 +1,8 @@
-This bot helps for _monitoring_ and _resetting_ the (peak) power usage of PDUS and is able to send you _push notifications_ in case of limit exceedings.
+This bot helps for _monitoring_ and _resetting_ the \(peak\) power usage of PDUS and is able to send you _push notifications_ in case of limit exceedings\.
 
 *Commands*
 - `/current`: Sends a list of the current power usage for each team.
 - `/peaks`: Sends a list of the peak power for each team.
 - `/peakdates`: Sends a list of the peak power together with the corresponding timestamp when this peak was reached for each team.
 - `/reset`: Resets PDU's peak power value specified by a given IP. After starting the command, please answer to the bot asking you for the IP address of the PDU to reset by sending the last 3 digits of the IP address.
+
