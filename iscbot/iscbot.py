@@ -283,13 +283,14 @@ class ISCBot(object):
 #-------Main method-------#
 
 def main():
-    VERSION = '1.5'
+    VERSION = '1.6'
     print('Start ISCBot v{}'.format(VERSION))
     iscbot = ISCBot()
     # Create repeating check for power limits
     check_job = iscbot.queue.run_repeating(iscbot.check_limits, interval=2, first=0)
     # disable logging of running check job
-    logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+    logging.getLogger('apscheduler.scheduler').setLevel(logging.ERROR)
+    logging.getLogger('apscheduler.executors.default').setLevel(logging.ERROR)
     # Start polling
     iscbot.application.run_polling(allowed_updates=Update.ALL_TYPES)
 

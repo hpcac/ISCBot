@@ -14,7 +14,7 @@ ISC Bot
 Bot for power monitoring of the HPCAC SCC of the ISC events.
 It can show current and peak power values, sends notifications in case of a team exceeds the power limit and can reset the actual peak power values on certain PDUs.
 
-Version: 1.5
+Version: 1.6
 
 Getting Started
 ===============
