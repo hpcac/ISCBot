@@ -19,7 +19,7 @@ Version: 1.6
 Getting Started
 ===============
 For running the Bot, no installation is necessary.
-Just clone this repository using ``git clone https://github.com/JanLJL/Telegram_Bots`` and go to the ``ISCBot`` directory.
+Just clone this repository using ``git clone https://github.com/hpcac/ISCBot.git``.
 
 Dependencies
 ~~~~~~~~~~~~
